@@ -108,8 +108,6 @@ void setup() {
   Serial.println("initialized!");
 }
 
-
-
 void loop() {
   eastValue = analogRead(eastPin);
   southValue = analogRead(southPin);
