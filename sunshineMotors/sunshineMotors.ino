@@ -44,7 +44,7 @@ int topsign; // top sign to determine direction
 int btmrev;
 int toprev;
 bool emergencystop = false;
-bool sensorcondition = true;
+bool sensorcondition = false;
 bool othersensorcondition = false;
 bool resetbutton = false;
 
@@ -99,6 +99,8 @@ void StepMotor(int motorNum, float revs, int dir, float speed) {
     delayMicroseconds(delaytime);
     digitalWrite(pulpin, LOW); //send low pulse
   }  
+  digitalWrite(dirpin, LOW);
+  digitalWrite(pulpin, LOW);
   digitalWrite(pinTable[motorNum][2], HIGH);
   Position[motorNum] += steps*dir;
   Serial.println("done! now at position:");
@@ -144,10 +146,8 @@ void loop() {
   // if all sensors read 0, something is wrong and the system should stop. The analog pins will only read 0 if there is no connection at all.
   // if they all read 1024, the max of the ADC, then there is continuity, meaning the sensors should be properly connected and functioning
   if (totalLight == 0) {
-    sensorcondition = false;
     othersensorcondition = true;
   } else {
-    sensorcondition = true;
     othersensorcondition = false;
   }
 
@@ -167,10 +167,10 @@ void loop() {
   }
   if (cmils - pmils >= interval || sensorcondition) {
     Serial.println("interval has passed or sensor button pressed! reading sun sensor now:");
-    if(abs(eW_error) > eW_deadband) {
+    //if(abs(eW_error) > eW_deadband) {
       btmrev = 5;
       StepMotor(0, btmrev, btmsign, 300); //motor, revolutions, direction, max speed
-    }
+    //}
     if(abs(nS_error) > nS_deadband) {
       toprev = 5;
       StepMotor(1, toprev, topsign, 300);
