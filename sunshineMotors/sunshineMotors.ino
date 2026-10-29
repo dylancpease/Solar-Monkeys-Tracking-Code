@@ -1,3 +1,18 @@
+ //adjustables---------------------------------------------
+const int PPR[2] = {400, 800}; // pulses per revolution set on first lower then upper motor driver (ignore gearbox)
+const int pinTable[2][3] = { //pulse, dir, enable
+  {3, 4, 6},
+  {7, 8, 10}
+};
+
+float Position[2] = {0, 0};   // position of motors in pulses, first = lower, second = upper
+const int MaxRevs[2] = {62.5, 10};  // gear ratios divided by two to set max +/- revolutions
+
+float minLight = 0; // minimum average light value that should be read by the sensor
+
+const unsigned long interval = 5*1000;    //change first number to change how many seconds
+//-----------------------------------
+
 int eastPin = A0;  //red
 int southPin = A1; //yellow
 int northPin = A2; //white or grey
@@ -24,15 +39,6 @@ float voltageSource = 5;
 float totalLight = 0;
 float avgLight = 0;
 
- //adjustables
-const int PPR[2] = {400, 400}; // pulses per revolution set on first lower then upper motor driver (ignore gearbox)
-const int pinTable[2][3] = { //pulse, dir, enable
-  {3, 4, 6},
-  {7, 8, 10}
-};
-const unsigned long interval = 5*1000;    //change first number to change how many seconds
-  //
-
 int btmsign; // bottom sign to determine direction
 int topsign; // top sign to determine direction
 int btmrev;
@@ -42,23 +48,26 @@ bool sensorcondition = true;
 bool othersensorcondition = false;
 bool resetbutton = false;
 
-
-int travelRevBtm; // number of revolutions the bottom motor has traveled
-int travelRevTop; // number of revolutions the top motor has traveled
-
-
-
 unsigned long pmils = 0;
 unsigned long pmils2 = 0;
 int secs = 0;
 
-float minLight = 1000; // minimum average light value that should be read by the sensor
-
-
 int StepMotor(int motorNum, float revs, int dir, float speed) { 
-  // dir: -1 = ccw, 1 = cw | revs = number of revolutions | speed = max rpm | motorNum: 0 = lower 1 = upper
+  // dir: -1 = ccw, 1 = cw | revs = number of revolutions (make sure PPR * revs is a whole number) | speed = max rpm | motorNum: 0 = lower 1 = upper
 
   float steps = PPR[motorNum]*revs;
+  float pulcheck = Position[motorNum] + steps*dir;
+  float MaxPul = MaxRevs[motorNum]*PPR[motorNum];
+  //over rotation check, will reverse direction and adjust steps accordingly
+  if(abs(pulcheck) > MaxPul) {   
+    Serial.println("too much rotation in this direction! reversing...");
+    int pulsigncheck = -pulcheck/abs(pulcheck);
+    float goal = (MaxPul - (abs(pulcheck) - (MaxPul)))*pulsigncheck;
+    steps = abs(goal - Position[motorNum]);
+    revs = steps/PPR[motorNum];
+    dir *= -1;
+  }
+
   int pulpin = pinTable[motorNum][0];
   int dirpin = pinTable[motorNum][1];
   float mindel = (1/(speed*PPR[motorNum]/60))*1000000;
@@ -67,11 +76,9 @@ int StepMotor(int motorNum, float revs, int dir, float speed) {
   String print = "Motor ";
   print += motorNum;
   Serial.println(print);
-  Serial.println(steps);
-  Serial.println(revs);
-  Serial.println(pinTable[motorNum][0]);
-  Serial.println(pinTable[motorNum][1]);
-  for (int i = 1; i <= steps; i++) {
+  Serial.println(steps*dir);
+  Serial.println(revs*dir);
+  for (float i = 1; i <= steps; i++) {
     if (emergencystop) {digitalWrite(pinTable[1][2], HIGH); digitalWrite(pinTable[0][2], HIGH); return; } else {digitalWrite(pinTable[1][2], LOW); digitalWrite(pinTable[0][2], LOW);} 
     //emergency stop condition, move/copy if needed
     digitalWrite(pulpin, HIGH); //send high pulse
@@ -92,7 +99,10 @@ int StepMotor(int motorNum, float revs, int dir, float speed) {
     digitalWrite(pulpin, LOW); //send low pulse
   }  
   digitalWrite(pinTable[motorNum][2], HIGH);
-  Serial.println("done!");
+  Position[motorNum] += steps*dir;
+  Serial.println("done! now at position:");
+  Serial.println(Position[motorNum]);
+  Serial.println(MaxRevs[motorNum]*PPR[motorNum]);
   return steps, dir;
 }
 
@@ -167,15 +177,13 @@ void loop() {
       StepMotor(1, toprev, 1, 300);
       */
       if(abs(eW_error) > eW_deadband) {
-        btmrev = 3;
+        btmrev = 5;
         StepMotor(0, btmrev, btmsign, 300);
-        travelRevBtm += btmsign*btmrev;  // Bottom motor, increments the steps travelled for cw rotations, decrements for ccw rotations 
       }
       if(abs(nS_error) > nS_deadband) {
-        toprev = 3;
+        toprev = 5;
         StepMotor(1, toprev, topsign, 300);
-        travelRevTop += topsign*toprev;
-      }
+      } 
     }
     secs = 0;
     cmils = millis();
@@ -198,16 +206,15 @@ void loop() {
 
 void autoHome(){
   // Move both motors to their home positions
-  int travelBtmSign = travelRevBtm / abs(travelRevBtm);     // tracks if the bottom motor has moved more cw or ccw
-  int travelTopSign = travelRevTop / abs(travelRevTop);     // tracks if the top motor has moved more cw or ccw
+  int travelBtmSign = Position[0] / abs(Position[0]);     // tracks if the bottom motor has moved more cw or ccw
+  int travelTopSign = Position[1] / abs(Position[1]);     // tracks if the top motor has moved more cw or ccw
   
-  while(travelRevBtm != 0) {
-    StepMotor(0, 1, -travelBtmSign, 30);         // Move one revolution at a time towards home. the negative of travelBtmSign means the movement will be in the opposite direction of where it has already travelled
-    travelRevBtm -= travelBtmSign*1;             // necessary to end the loop
+  while(Position[0] != 0) {
+    StepMotor(0, 1, -travelBtmSign, 30);         /* Move one revolution at a time towards home. the negative of travel
+                                                    BtmSign means the movement will be in the opposite direction of where it has already travelled */
   }
-  while(travelRevTop != 0) {               // same behavior, but for the top motor
+  while(Position[1] != 0) {                     // same behavior, but for the top motor
     StepMotor(1, 1, -travelTopSign, 30); 
-    travelRevTop -= travelTopSign*1;
   }
 }
 
