@@ -52,7 +52,7 @@ unsigned long pmils = 0;
 unsigned long pmils2 = 0;
 int secs = 0;
 
-int StepMotor(int motorNum, float revs, int dir, float speed) { 
+void StepMotor(int motorNum, float revs, int dir, float speed) { 
   // dir: -1 = ccw, 1 = cw | revs = number of revolutions (make sure PPR * revs is a whole number) | speed = max rpm | motorNum: 0 = lower 1 = upper
 
   float steps = PPR[motorNum]*revs;
@@ -103,10 +103,7 @@ int StepMotor(int motorNum, float revs, int dir, float speed) {
   Position[motorNum] += steps*dir;
   Serial.println("done! now at position:");
   Serial.println(Position[motorNum]);
-  Serial.println(MaxRevs[motorNum]*PPR[motorNum]);
-  return steps, dir;
 }
-
 
 
 void setup() {
@@ -125,7 +122,6 @@ void setup() {
   Serial.begin(9600);
   Serial.println("initialized!");
 }
-
 
 
 void loop() {
@@ -169,23 +165,16 @@ void loop() {
     secs++;
     Serial.println(secs);
   }
-  if (cmils - pmils >= interval) {
-    Serial.println("interval has passed! reading sun sensor now:");
-    if (sensorcondition) {
-      /*btmrev = 30;    //place these in if/then statements when sensor reading is normalized
-      toprev = 30;
-      StepMotor(0, btmrev, 1, 300); //motor, revolutions, direction, max speed
-      StepMotor(1, toprev, 1, 300);
-      */
-      if(abs(eW_error) > eW_deadband) {
-        btmrev = 5;
-        StepMotor(0, btmrev, btmsign, 300);
-      }
-      if(abs(nS_error) > nS_deadband) {
-        toprev = 5;
-        StepMotor(1, toprev, topsign, 300);
-      } 
+  if (cmils - pmils >= interval || sensorcondition) {
+    Serial.println("interval has passed or sensor button pressed! reading sun sensor now:");
+    if(abs(eW_error) > eW_deadband) {
+      btmrev = 5;
+      StepMotor(0, btmrev, btmsign, 300); //motor, revolutions, direction, max speed
     }
+    if(abs(nS_error) > nS_deadband) {
+      toprev = 5;
+      StepMotor(1, toprev, topsign, 300);
+    } 
     secs = 0;
     cmils = millis();
     pmils = cmils;
@@ -196,6 +185,7 @@ void loop() {
   if (resetbutton) {
     emergencystop = false;
     sensorcondition = true;
+    delay(3000);
   }
 
   //outputSensorValue();
@@ -207,16 +197,11 @@ void loop() {
 
 void autoHome(){
   // Move both motors to their home positions
-  int travelBtmSign = Position[0] / abs(Position[0]);     // tracks if the bottom motor has moved more cw or ccw
-  int travelTopSign = Position[1] / abs(Position[1]);     // tracks if the top motor has moved more cw or ccw
-  
-  while(Position[0] != 0) {
-    StepMotor(0, 1, -travelBtmSign, 30);         /* Move one revolution at a time towards home. the negative of travel
-                                                    BtmSign means the movement will be in the opposite direction of where it has already travelled */
-  }
-  while(Position[1] != 0) {                     // same behavior, but for the top motor
-    StepMotor(1, 1, -travelTopSign, 30); 
-  }
+  btmsign = Position[0]/abs(Position[0]);
+  topsign = Position[1]/abs(Position[1]);
+
+  StepMotor(0, Position[0], -btmsign, 30);         /*-BtmSign means the movement will be in the opposite direction of where it has already travelled */
+  StepMotor(1, Position[1], -topsign, 30);         // same behavior, but for the top motor
 }
 
 
