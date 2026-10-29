@@ -167,10 +167,10 @@ void loop() {
   }
   if (cmils - pmils >= interval || sensorcondition) {
     Serial.println("interval has passed or sensor button pressed! reading sun sensor now:");
-    //if(abs(eW_error) > eW_deadband) {
+    if(abs(eW_error) > eW_deadband) {
       btmrev = 5;
       StepMotor(0, btmrev, btmsign, 300); //motor, revolutions, direction, max speed
-    //}
+    }
     if(abs(nS_error) > nS_deadband) {
       toprev = 5;
       StepMotor(1, toprev, topsign, 300);
