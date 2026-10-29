@@ -58,6 +58,7 @@ int StepMotor(int motorNum, float revs, int dir, float speed) {
   float steps = PPR[motorNum]*revs;
   float pulcheck = Position[motorNum] + steps*dir;
   float MaxPul = MaxRevs[motorNum]*PPR[motorNum];
+  
   //over rotation check, will reverse direction and adjust steps accordingly
   if(abs(pulcheck) > MaxPul) {   
     Serial.println("too much rotation in this direction! reversing...");
