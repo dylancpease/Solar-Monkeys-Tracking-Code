@@ -33,6 +33,8 @@ const int pinTable[2][3] = { //pulse, dir, enable
 const unsigned long interval = 5*1000;    //change first number to change how many seconds
   //
 
+float Position[2] = {0, 0};     //controls maximum/minimum rotation angles; first = lower, second = upper
+
 int btmsign; // bottom sign to determine direction
 int topsign; // top sign to determine direction
 int btmrev;
@@ -55,6 +57,7 @@ int StepMotor(int motorNum, float revs, int dir, float speed) {
   // dir: -1 = ccw, 1 = cw | revs = number of revolutions | speed = max rpm | motorNum: 0 = lower 1 = upper
 
   float steps = PPR[motorNum]*revs;
+ // if ((Position[motorNum] + )
   int pulpin = pinTable[motorNum][0];
   int dirpin = pinTable[motorNum][1];
   float mindel = (1/(speed*PPR[motorNum]/60))*1000000;
@@ -89,7 +92,7 @@ int StepMotor(int motorNum, float revs, int dir, float speed) {
   }  
   digitalWrite(pinTable[motorNum][2], HIGH);
   Serial.println("done!");
-  return steps, dir;
+  return ;
 }
 
 void setup() {
@@ -120,11 +123,11 @@ void loop() {
   totalLight = eastValue + southValue + northValue + westValue;
   avgLight = totalLight / 4;
 
-  if (avgLight < minLight){
+ /* if (avgLight < minLight){
     StepMotor(0, 0, 0, 0);
     StepMotor(1, 0, 0, 0);
 
-  } 
+  } */
 
 
   // if all sensors read 0, something is wrong and the system should stop
