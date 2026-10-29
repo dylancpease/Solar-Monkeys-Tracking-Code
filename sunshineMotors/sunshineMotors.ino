@@ -91,6 +91,7 @@ int StepMotor(int motorNum, float revs, int dir, float speed) {
     delayMicroseconds(delaytime);
     digitalWrite(pulpin, LOW); //send low pulse
   }  
+  digitalWrite(pinTable[motorNum][2], HIGH);
   Serial.println("done!");
   return steps, dir;
 }
@@ -108,6 +109,8 @@ void setup() {
   pinMode(7,OUTPUT);  //pulse
   pinMode(8,OUTPUT);  //direction
   pinMode(10,OUTPUT); //enable
+  digitalWrite(pinTable[1][2], HIGH);
+  digitalWrite(pinTable[0][2], HIGH);
   Serial.begin(9600);
   Serial.println("initialized!");
 }
