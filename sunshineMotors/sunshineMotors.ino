@@ -43,6 +43,10 @@ bool othersensorcondition = false;
 bool resetbutton = false;
 
 
+int travelRevBtm; // number of revolutions the bottom motor has traveled
+int travelRevTop; // number of revolutions the top motor has traveled
+
+
 
 unsigned long pmils = 0;
 unsigned long pmils2 = 0;
@@ -87,6 +91,7 @@ int StepMotor(int motorNum, float revs, int dir, float speed) {
     delayMicroseconds(delaytime);
     digitalWrite(pulpin, LOW); //send low pulse
   }  
+  digitalWrite(pinTable[motorNum][2], HIGH);
   Serial.println("done!");
   return steps, dir;
 }
@@ -94,7 +99,6 @@ int StepMotor(int motorNum, float revs, int dir, float speed) {
 
 
 void setup() {
-  Serial.begin(9600);
   
   //lower/sshaft
   pinMode(3,OUTPUT); //pulse
@@ -105,6 +109,8 @@ void setup() {
   pinMode(7,OUTPUT);  //pulse
   pinMode(8,OUTPUT);  //direction
   pinMode(10,OUTPUT); //enable
+  digitalWrite(pinTable[1][2], HIGH);
+  digitalWrite(pinTable[0][2], HIGH);
   Serial.begin(9600);
   Serial.println("initialized!");
 }
@@ -124,13 +130,12 @@ void loop() {
   avgLight = totalLight / 4;
 
   if (avgLight < minLight){
-    StepMotor(0, 0, 0, 0);
-    StepMotor(1, 0, 0, 0);
-
+    autoHome();             // if the light detected is below the minimum threshold, move both motors to their home positions
   } 
 
 
-  // if all sensors read 0, something is wrong and the system should stop
+  // if all sensors read 0, something is wrong and the system should stop. The analog pins will only read 0 if there is no connection at all.
+  // if they all read 1024, the max of the ADC, then there is continuity, meaning the sensors should be properly connected and functioning
   if (totalLight == 0) {
     sensorcondition = false;
     othersensorcondition = true;
@@ -143,6 +148,7 @@ void loop() {
   nS_error = northValue - southValue;
   btmsign = eW_error/abs(eW_error);
   topsign = nS_error/abs(nS_error);
+
 
 
 
@@ -163,10 +169,12 @@ void loop() {
       if(abs(eW_error) > eW_deadband) {
         btmrev = 3;
         StepMotor(0, btmrev, btmsign, 300);
+        travelRevBtm += btmsign*btmrev;  // Bottom motor, increments the steps travelled for cw rotations, decrements for ccw rotations 
       }
       if(abs(nS_error) > nS_deadband) {
         toprev = 3;
         StepMotor(1, toprev, topsign, 300);
+        travelRevTop += topsign*toprev;
       }
     }
     secs = 0;
@@ -188,7 +196,20 @@ void loop() {
 }
 
 
-
+void autoHome(){
+  // Move both motors to their home positions
+  int travelBtmSign = travelRevBtm / abs(travelRevBtm);     // tracks if the bottom motor has moved more cw or ccw
+  int travelTopSign = travelRevTop / abs(travelRevTop);     // tracks if the top motor has moved more cw or ccw
+  
+  while(travelRevBtm != 0) {
+    StepMotor(0, 1, -travelBtmSign, 30);         // Move one revolution at a time towards home. the negative of travelBtmSign means the movement will be in the opposite direction of where it has already travelled
+    travelRevBtm -= travelBtmSign*1;             // necessary to end the loop
+  }
+  while(travelRevTop != 0) {               // same behavior, but for the top motor
+    StepMotor(1, 1, -travelTopSign, 30); 
+    travelRevTop -= travelTopSign*1;
+  }
+}
 
 
 void outputSensorValue() {
