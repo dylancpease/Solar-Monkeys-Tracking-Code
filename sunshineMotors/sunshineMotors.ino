@@ -25,6 +25,7 @@ int westValue = 0;
 
 int eW_error = 0;
 int nS_error = 0;
+int totalError = 0;
 
 int eW_deadband = 35;
 int nS_deadband = 35;
@@ -125,23 +126,14 @@ void setup() {
   Serial.println("initialized!");
 }
 
-
-void loop() {
+int SunSensorRead() {
   eastValue = analogRead(eastPin);
   southValue = analogRead(southPin);
   northValue = analogRead(northPin);
   westValue = analogRead(westPin);
 
-  
-
-
   totalLight = eastValue + southValue + northValue + westValue;
   avgLight = totalLight / 4;
-
-  if (avgLight < minLight){
-    autoHome();             // if the light detected is below the minimum threshold, move both motors to their home positions
-  } 
-
 
   // if all sensors read 0, something is wrong and the system should stop. The analog pins will only read 0 if there is no connection at all.
   // if they all read 1024, the max of the ADC, then there is continuity, meaning the sensors should be properly connected and functioning
@@ -153,32 +145,19 @@ void loop() {
 
   eW_error = eastValue - westValue;
   nS_error = northValue - southValue;
+  totalError = abs(nS_error) + abs(eW_error);
   btmsign = eW_error/abs(eW_error);
   topsign = nS_error/abs(nS_error);
+}
 
+void loop() {
+//sensor reading loop-------------------
+  SunSensorRead();
 
+  if (avgLight < minLight){
+    autoHome();             // if the light detected is below the minimum threshold, move both motors to their home positions
+  } 
 
-
-  unsigned long cmils = millis();
-  if (cmils - pmils2 >= 1000) {
-    pmils2 = cmils;
-    secs++;
-    Serial.println(secs);
-  }
-  if (cmils - pmils >= interval || sensorcondition) {
-    Serial.println("interval has passed or sensor button pressed! reading sun sensor now:");
-    if(abs(eW_error) > eW_deadband) {
-      btmrev = 5;
-      StepMotor(0, btmrev, btmsign, 300); //motor, revolutions, direction, max speed
-    }
-    if(abs(nS_error) > nS_deadband) {
-      toprev = 5;
-      StepMotor(1, toprev, topsign, 300);
-    } 
-    secs = 0;
-    cmils = millis();
-    pmils = cmils;
-  }
   if (othersensorcondition) {
     emergencystop = true;
   }
@@ -188,10 +167,33 @@ void loop() {
     delay(3000);
   }
 
-  //outputSensorValue();
+//movement loop -------------------
+  unsigned long cmils = millis();
+  if (cmils - pmils2 >= 1000) {
+    pmils2 = cmils;
+    secs++;
+    Serial.println(secs);
+  }
+  if (cmils - pmils >= interval || sensorcondition) {
+    Serial.println("interval has passed or sensor button pressed! reading sun sensor now:");
+    while(totalError >= 100) {
+      if (abs(eW_error) > eW_deadband) {
+        btmrev = 5;
+        StepMotor(0, btmrev, btmsign, 300); //motor, revolutions, direction, max speed
+      }
+      if (abs(nS_error) > nS_deadband) {
+        toprev = 5;
+        StepMotor(1, toprev, topsign, 300);
+      }
+      SunSensorRead(); 
+    }
+    sensorcondition = false;
+    secs = 0;
+    cmils = millis();
+    pmils = cmils;
+  }
 
-  //delay(1000);
-
+//outputSensorValue();
 }
 
 
