@@ -151,23 +151,23 @@ int SunSensorRead() {
 }
 
 void loop() {
-//sensor reading loop-------------------
+//sensor readings loop-------------------
   SunSensorRead();
-
-  if (avgLight < minLight){
-    autoHome();             // if the light detected is below the minimum threshold, move both motors to their home positions
-  } 
 
   if (othersensorcondition) {
     emergencystop = true;
   }
   if (resetbutton) {
     emergencystop = false;
-    sensorcondition = true;
-    delay(3000);
+    sensorcondition = true;   // used to get the system to stop, read the sun sensor, and move accordingly after a 5 second delay
+    delay(5000);
   }
 
 //movement loop -------------------
+  if (avgLight < minLight){
+    autoHome();             // if the light detected is below the minimum threshold, move both motors to their home positions
+  } 
+
   unsigned long cmils = millis();
   if (cmils - pmils2 >= 1000) {
     pmils2 = cmils;
@@ -182,7 +182,7 @@ void loop() {
         StepMotor(0, btmrev, btmsign, 300); //motor, revolutions, direction, max speed
       }
       if (abs(nS_error) > nS_deadband) {
-        toprev = 5;
+        toprev = 2;
         StepMotor(1, toprev, topsign, 300);
       }
       SunSensorRead(); 
