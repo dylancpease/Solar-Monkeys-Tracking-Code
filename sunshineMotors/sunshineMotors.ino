@@ -45,13 +45,39 @@ int topsign; // top sign to determine direction
 int btmrev;
 int toprev;
 bool emergencystop = false;
-bool sensorcondition = false;
+bool instantstart = false;
 bool othersensorcondition = false;
 bool resetbutton = false;
 
+unsigned long cmils = 0;
 unsigned long pmils = 0;
 unsigned long pmils2 = 0;
 int secs = 0;
+int startswitch = 0;
+void setup() {
+
+  //set up start switch
+  pinMode(2, INPUT);  //start switch pin
+  attachInterrupt(digitalPinToInterrupt(2), StartSwitch, FALLING);
+
+  //lower/sshaft
+  pinMode(3,OUTPUT); //pulse
+  pinMode(4,OUTPUT); //direction
+  pinMode(6,OUTPUT); //enable
+
+  //upper/dshaft
+  pinMode(7,OUTPUT);  //pulse
+  pinMode(8,OUTPUT);  //direction
+  pinMode(9, OUTPUT); //electric brake toggle (high = stop braking, low = start braking)
+  pinMode(10,OUTPUT); //enable
+
+  pinMode(2, INPUT);  //power switch
+
+  digitalWrite(pinTable[1][2], HIGH);
+  digitalWrite(pinTable[0][2], HIGH);
+  Serial.begin(9600);
+  Serial.println("initialized!");
+}
 
 void StepMotor(int motorNum, float revs, int dir, float speed) { 
   // dir: -1 = ccw, 1 = cw | revs = number of revolutions (make sure PPR * revs is a whole number) | speed = max rpm | motorNum: 0 = lower 1 = upper
@@ -80,6 +106,9 @@ void StepMotor(int motorNum, float revs, int dir, float speed) {
   Serial.println(print);
   Serial.println(steps*dir);
   Serial.println(revs*dir);
+  if (motorNum == 1) {
+    digitalWrite(9, HIGH);      //turn off brake for upper motor
+  }
   for (float i = 1; i <= steps; i++) {
     if (emergencystop) {digitalWrite(pinTable[1][2], HIGH); digitalWrite(pinTable[0][2], HIGH); return; } else {digitalWrite(pinTable[1][2], LOW); digitalWrite(pinTable[0][2], LOW);} 
     //emergency stop condition, move/copy if needed
@@ -102,28 +131,11 @@ void StepMotor(int motorNum, float revs, int dir, float speed) {
   }  
   digitalWrite(dirpin, LOW);
   digitalWrite(pulpin, LOW);
+  digitalWrite(9, LOW);   //turn brake back on
   digitalWrite(pinTable[motorNum][2], HIGH);
   Position[motorNum] += steps*dir;
   Serial.println("done! now at position:");
   Serial.println(Position[motorNum]);
-}
-
-
-void setup() {
-  
-  //lower/sshaft
-  pinMode(3,OUTPUT); //pulse
-  pinMode(4,OUTPUT); //direction
-  pinMode(6,OUTPUT); //enable
-
-  //upper/dshaft
-  pinMode(7,OUTPUT);  //pulse
-  pinMode(8,OUTPUT);  //direction
-  pinMode(10,OUTPUT); //enable
-  digitalWrite(pinTable[1][2], HIGH);
-  digitalWrite(pinTable[0][2], HIGH);
-  Serial.begin(9600);
-  Serial.println("initialized!");
 }
 
 int SunSensorRead() {
@@ -150,17 +162,29 @@ int SunSensorRead() {
   topsign = nS_error/abs(nS_error);
 }
 
+void StartSwitch() {
+  while(~startswitch) {
+    startswitch = digitalRead(2);       // check if switch is on every loop, if off loop continues
+    pmils = 0;                          // reset all timers
+    cmils = 0;
+    pmils2 = 0;
+    secs = 0;
+    digitalWrite(pinTable[1][2], HIGH); //prevent motor power draw while off
+    digitalWrite(pinTable[0][2], HIGH); 
+  }
+  instantstart = true;     //allow movement to occur after switch is flipped after 10 seconds,
+  digitalWrite(9, HIGH);   //and allow user to move the upper axis for 10 seconds
+  delay(10000);          
+  digitalWrite(9, LOW);
+}
+
 void loop() {
 //sensor readings loop-------------------
+  StartSwitch(); // check start switch every loop, if off will go to power switch loop (will also halt cancel motor movement with ISR)
   SunSensorRead();
 
   if (othersensorcondition) {
     emergencystop = true;
-  }
-  if (resetbutton) {
-    emergencystop = false;
-    sensorcondition = true;   // used to get the system to stop, read the sun sensor, and move accordingly after a 5 second delay
-    delay(5000);
   }
 
 //movement loop -------------------
@@ -168,14 +192,14 @@ void loop() {
     autoHome();             // if the light detected is below the minimum threshold, move both motors to their home positions
   } 
 
-  unsigned long cmils = millis();
+  cmils = millis();
   if (cmils - pmils2 >= 1000) {
     pmils2 = cmils;
     secs++;
     Serial.println(secs);
   }
-  if (cmils - pmils >= interval || sensorcondition) {
-    Serial.println("interval has passed or sensor button pressed! reading sun sensor now:");
+  if (cmils - pmils >= interval || instantstart) {
+    Serial.println("interval has passed or instant start! reading sun sensor now:");
     while(totalError >= 100) {
       if (abs(eW_error) > eW_deadband) {
         btmrev = 5;
@@ -187,7 +211,7 @@ void loop() {
       }
       SunSensorRead(); 
     }
-    sensorcondition = false;
+    instantstart = false;
     secs = 0;
     cmils = millis();
     pmils = cmils;
